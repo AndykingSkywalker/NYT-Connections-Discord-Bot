@@ -112,15 +112,18 @@ async def post_daily_leaderboard():
                     if leaderboard:
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
-                        sorted_scores = sorted(scores.values(), key=lambda x: x["guesses"])
-                        msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
-                        medals = ["🥇", "🥈", "🥉"]
-                        for idx, entry in enumerate(sorted_scores):
-                            medal = medals[idx] if idx < 3 else "•"
-                            msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
-                        await channel.send(msg)
+                        if scores:  # Only post if there are results for the puzzle
+                            sorted_scores = sorted(scores.values(), key=lambda x: x["guesses"])
+                            msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
+                            medals = ["🥇", "🥈", "🥉"]
+                            for idx, entry in enumerate(sorted_scores):
+                                medal = medals[idx] if idx < 3 else "•"
+                                msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
+                            await channel.send(msg)
+                        else:
+                            await channel.send("No results for today's puzzle yet.")
                     else:
-                        await channel.send("No puzzles have been recorded today.")
+                        await channel.send("No puzzles have been recorded yet.")
     except Exception as e:
         print(f"Error in post_daily_leaderboard: {e}")
         import traceback
