@@ -51,17 +51,20 @@ async def on_message(message):
         user_id = str(message.author.id)
         user_name = message.author.display_name
 
-        # Count guesses = number of lines containing squares
-        guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)])
-
-        # Save result
+        # Only record the first submission for each user per puzzle
         leaderboard.setdefault(puzzle, {})
-        leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
-        save_data()
-
-        await message.channel.send(
-            f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
-        )
+        if user_id in leaderboard[puzzle]:
+            await message.channel.send(
+                f"⚠️ {user_name}, you've already submitted a result for Puzzle #{puzzle}. Only your first submission counts."
+            )
+        else:
+            # Count guesses = number of lines containing squares
+            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)])
+            leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
+            save_data()
+            await message.channel.send(
+                f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
+            )
 
     await bot.process_commands(message)
 
