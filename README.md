@@ -19,6 +19,8 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
    ```bash
    pip install -r requirements.txt
    ```
+   Ensure you have Python 3.8 or higher installed.
+   ```
 3. **Create a Discord bot and get your token:**
    - Go to the [Discord Developer Portal](https://discord.com/developers/applications)
    - Create a new application and add a bot

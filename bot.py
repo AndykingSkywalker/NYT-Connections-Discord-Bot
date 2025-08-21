@@ -5,9 +5,13 @@ import re
 import os
 import json
 from dotenv import load_dotenv
+from keep_alive import keep_alive
 
 # Load environment variables
 load_dotenv()
+
+# Start the web server to keep the bot alive
+keep_alive()
 
 # --- Bot Setup ---
 intents = discord.Intents.default()
