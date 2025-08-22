@@ -105,7 +105,7 @@ async def on_ready():
 async def post_daily_leaderboard():
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
-        if now.hour == 8 and now.minute == 0:
+        if now.hour == 8 and now.minute == 10:  # 8:10 AM UTC
             for guild in bot.guilds:
                 channel = discord.utils.get(guild.text_channels, name="connections")
                 if channel:
@@ -113,7 +113,8 @@ async def post_daily_leaderboard():
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
                         if scores:  # Only post if there are results for the puzzle
-                            sorted_scores = sorted(scores.values(), key=lambda x: x["guesses"])
+                            # Sort by guesses, but keep uid
+                            sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
                             msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
                             medals = ["🥇", "🥈", "🥉"]
                             for idx, (uid, entry) in enumerate(sorted_scores):
