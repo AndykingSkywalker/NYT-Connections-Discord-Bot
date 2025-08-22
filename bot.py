@@ -105,7 +105,7 @@ async def on_ready():
 async def post_daily_leaderboard():
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
-        if now.hour == 8 and now.minute == 10:  # 8:10 AM UTC
+        if now.hour == 8 and now.minute == 20:  # 8:10 AM UTC
             for guild in bot.guilds:
                 channel = discord.utils.get(guild.text_channels, name="connections")
                 if channel:
