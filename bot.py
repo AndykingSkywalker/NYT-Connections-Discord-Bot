@@ -6,6 +6,7 @@ import os
 import json
 from dotenv import load_dotenv
 from keep_alive import keep_alive
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -35,6 +36,8 @@ def save_data():
         json.dump(leaderboard, f, indent=2)
 
 # --- Auto-detect NYT Connections results ---
+leaderboard_lock = threading.Lock()
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -60,8 +63,10 @@ async def on_message(message):
         else:
             # Count guesses = number of lines containing squares
             guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)])
-            leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
-            save_data()
+            with leaderboard_lock:
+                leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
+                save_data()
+            print(f"Saved submission for {user_name} (Puzzle {puzzle}, {guesses} guesses)")
             await message.channel.send(
                 f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
             )
@@ -97,15 +102,22 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
 
 
 # --- Event: Final Leaderboard of the Day ---
+last_posted_minute = None
+
 @bot.event
 async def on_ready():
     post_daily_leaderboard.start()
 
 @tasks.loop(minutes=1)
 async def post_daily_leaderboard():
+    global last_posted_minute
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
-        if now.hour == 8 and now.minute == 20:  # 8:10 AM UTC
+        minute_key = f"{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}"
+        if now.hour == 8 and now.minute == 40:  # 8:40 AM UTC
+            if last_posted_minute == minute_key:
+                return  # Prevent duplicate posts in the same minute
+            last_posted_minute = minute_key
             for guild in bot.guilds:
                 channel = discord.utils.get(guild.text_channels, name="connections")
                 if channel:
@@ -129,6 +141,16 @@ async def post_daily_leaderboard():
         print(f"Error in post_daily_leaderboard: {e}")
         import traceback
         traceback.print_exc()
+
+# --- Command: Clear Leaderboard (Admin) ---
+@bot.command(name="clear_leaderboard")
+@commands.has_permissions(administrator=True)
+async def clear_leaderboard(ctx):
+    global leaderboard
+    with leaderboard_lock:
+        leaderboard = {}
+        save_data()
+    await ctx.send("Leaderboard data cleared.")
 
 # --- Run the Bot ---
 bot.run(os.getenv("DISCORD_TOKEN"))
