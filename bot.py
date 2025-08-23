@@ -114,7 +114,7 @@ async def post_daily_leaderboard():
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
         minute_key = f"{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}"
-        if now.hour == 8 and now.minute == 40:  # 8:40 AM UTC
+        if now.hour == 21 and now.minute == 00:  # 9:00 PM UTC
             if last_posted_minute == minute_key:
                 return  # Prevent duplicate posts in the same minute
             last_posted_minute = minute_key
