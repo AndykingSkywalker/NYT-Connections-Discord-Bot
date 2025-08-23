@@ -98,6 +98,7 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
         medal = medals[idx] if idx < 3 else "•"
         msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
 
+    #TODO: ADD FUNCTIONALITY FOR TIES (e.g. 2 people with 3 guesses)
     await ctx.send(msg)
 
 
@@ -141,6 +142,8 @@ async def post_daily_leaderboard():
         print(f"Error in post_daily_leaderboard: {e}")
         import traceback
         traceback.print_exc()
+
+#TODO: ADD FUNCTIONALITY FOR TIES (e.g. 2 people with 3 guesses) THINKING ABOUT ADDING A TIEBREAKER GAME OF GUESS THE NUMBER, CLOSEST WINS
 
 # --- Command: Clear Leaderboard (Admin) ---
 @bot.command(name="clear_leaderboard")
