@@ -115,7 +115,7 @@ async def post_daily_leaderboard():
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
         minute_key = f"{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}"
-        if now.hour == 21 and now.minute == 00:  # 9:00 PM UTC
+        if now.hour == 21 and now.minute == 0:  # 9:00 PM UTC
             if last_posted_minute == minute_key:
                 return  # Prevent duplicate posts in the same minute
             last_posted_minute = minute_key
@@ -125,8 +125,8 @@ async def post_daily_leaderboard():
                     if leaderboard:
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
-                        if scores:  # Only post if there are results for the puzzle
-                            # Sort by guesses, but keep uid
+                        if scores:
+                            # Sort by guesses, but keep all users
                             sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
                             msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
                             medals = ["🥇", "🥈", "🥉"]
@@ -155,5 +155,17 @@ async def clear_leaderboard(ctx):
         save_data()
     await ctx.send("Leaderboard data cleared.")
 
+def stop_bot():
+    # This function can be called in tests to stop the bot if running
+    try:
+        if bot.is_closed():
+            return
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.create_task(bot.close())
+    except Exception as e:
+        print(f"Error stopping bot: {e}")
+
 # --- Run the Bot ---
-bot.run(os.getenv("DISCORD_TOKEN"))
+if __name__ == "__main__":
+    bot.run(os.getenv("DISCORD_TOKEN"))
