@@ -162,6 +162,12 @@ async def clear_leaderboard(ctx):
     save_leaderboard(guild_id, {})
     await ctx.send("Leaderboard data cleared.")
 
+@bot.command(name="show_leaderboard_file")
+async def show_leaderboard_file(ctx):
+    guild_id = ctx.guild.id
+    file_name = get_leaderboard_file(guild_id)
+    await ctx.send(f"Leaderboard file for this server: {file_name}")
+
 def stop_bot():
     # This function can be called in tests to stop the bot if running
     try:
