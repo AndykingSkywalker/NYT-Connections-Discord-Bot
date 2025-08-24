@@ -7,6 +7,7 @@ import json
 from dotenv import load_dotenv
 from keep_alive import keep_alive
 import threading
+import glob
 
 # Load environment variables
 load_dotenv()
@@ -22,18 +23,20 @@ intents.message_content = True  # Needed to read messages
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- Leaderboard Storage ---
-DATA_FILE = "leaderboard.json"
+def get_leaderboard_file(guild_id):
+    return f"leaderboard_{guild_id}.json"
 
-# Load existing data
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r") as f:
-        leaderboard = json.load(f)
-else:
-    leaderboard = {}
+def load_leaderboard(guild_id):
+    file = get_leaderboard_file(guild_id)
+    if os.path.exists(file):
+        with open(file, "r") as f:
+            return json.load(f)
+    return {}
 
-def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(leaderboard, f, indent=2)
+def save_leaderboard(guild_id, data):
+    file = get_leaderboard_file(guild_id)
+    with open(file, "w") as f:
+        json.dump(data, f, indent=2)
 
 # --- Auto-detect NYT Connections results ---
 leaderboard_lock = threading.Lock()
@@ -46,6 +49,9 @@ async def on_message(message):
     # Only process messages in "connections" channel
     if message.channel.name != "connections":
         return
+
+    guild_id = message.guild.id
+    leaderboard = load_leaderboard(guild_id)
 
     # Detect puzzle number
     match = re.search(r'Puzzle #(\d+)', message.content)
@@ -63,9 +69,8 @@ async def on_message(message):
         else:
             # Count guesses = number of lines containing squares
             guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)])
-            with leaderboard_lock:
-                leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
-                save_data()
+            leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
+            save_leaderboard(guild_id, leaderboard)
             print(f"Saved submission for {user_name} (Puzzle {puzzle}, {guesses} guesses)")
             await message.channel.send(
                 f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
@@ -76,6 +81,9 @@ async def on_message(message):
 # --- Command: Leaderboard ---
 @bot.command(name="leaderboard")
 async def leaderboard_cmd(ctx, puzzle_number: str):
+    guild_id = ctx.guild.id
+    leaderboard = load_leaderboard(guild_id)
+
     if puzzle_number.lower() == "today":
         if not leaderboard:
             await ctx.send("No puzzles have been recorded yet.")
@@ -122,6 +130,7 @@ async def post_daily_leaderboard():
             for guild in bot.guilds:
                 channel = discord.utils.get(guild.text_channels, name="connections")
                 if channel:
+                    leaderboard = load_leaderboard(guild.id)
                     if leaderboard:
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
@@ -149,10 +158,8 @@ async def post_daily_leaderboard():
 @bot.command(name="clear_leaderboard")
 @commands.has_permissions(administrator=True)
 async def clear_leaderboard(ctx):
-    global leaderboard
-    with leaderboard_lock:
-        leaderboard = {}
-        save_data()
+    guild_id = ctx.guild.id
+    save_leaderboard(guild_id, {})
     await ctx.send("Leaderboard data cleared.")
 
 def stop_bot():
