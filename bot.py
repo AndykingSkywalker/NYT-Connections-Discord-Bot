@@ -67,8 +67,8 @@ async def on_message(message):
                 f"⚠️ {user_name}, you've already submitted a result for Puzzle #{puzzle}. Only your first submission counts."
             )
         else:
-            # Count guesses = number of lines containing squares
-            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)])
+            # Count guesses = number of lines containing squares + 1 (to account for off-by-1 error)
+            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)]) + 1
             leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
             save_leaderboard(guild_id, leaderboard)
             print(f"Saved submission for {user_name} (Puzzle {puzzle}, {guesses} guesses)")
@@ -102,11 +102,77 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
     msg = f"🏆 Leaderboard for Puzzle #{puzzle_key} 🏆\n"
 
     medals = ["🥇", "🥈", "🥉"]
+    current_rank = 1
+    prev_guesses = None
+    
     for idx, entry in enumerate(sorted_scores):
-        medal = medals[idx] if idx < 3 else "•"
+        # Handle ties - players with same score get same rank
+        if prev_guesses is not None and entry['guesses'] != prev_guesses:
+            current_rank = idx + 1
+        
+        medal = medals[current_rank - 1] if current_rank <= 3 else "•"
         msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
+        prev_guesses = entry['guesses']
 
-    #TODO: ADD FUNCTIONALITY FOR TIES (e.g. 2 people with 3 guesses)
+    await ctx.send(msg)
+
+
+# --- Command: Weekly Leaderboard ---
+@bot.command(name="weekly_leaderboard")
+async def weekly_leaderboard_cmd(ctx):
+    guild_id = ctx.guild.id
+    leaderboard = load_leaderboard(guild_id)
+    
+    if not leaderboard:
+        await ctx.send("No puzzles have been recorded yet.")
+        return
+    
+    # Calculate weekly scores (last 7 puzzles)
+    puzzle_numbers = sorted([int(k) for k in leaderboard.keys()])
+    recent_puzzles = puzzle_numbers[-7:]  # Last 7 puzzles
+    
+    if len(recent_puzzles) == 0:
+        await ctx.send("No puzzles available for weekly leaderboard.")
+        return
+    
+    # Aggregate scores across the week
+    weekly_scores = {}
+    puzzle_count = {}
+    
+    for puzzle_num in recent_puzzles:
+        puzzle_key = str(puzzle_num)
+        if puzzle_key in leaderboard:
+            for user_id, user_data in leaderboard[puzzle_key].items():
+                if user_id not in weekly_scores:
+                    weekly_scores[user_id] = {
+                        'name': user_data['name'],
+                        'total_guesses': 0,
+                        'puzzles_played': 0
+                    }
+                weekly_scores[user_id]['total_guesses'] += user_data['guesses']
+                weekly_scores[user_id]['puzzles_played'] += 1
+    
+    # Calculate average scores and sort
+    for user_data in weekly_scores.values():
+        user_data['average'] = user_data['total_guesses'] / user_data['puzzles_played']
+    
+    sorted_weekly = sorted(weekly_scores.values(), key=lambda x: x['average'])
+    
+    msg = f"🏆 Weekly Leaderboard (Last {len(recent_puzzles)} puzzles: #{recent_puzzles[0]}-#{recent_puzzles[-1]}) 🏆\n"
+    
+    medals = ["🥇", "🥈", "🥉"]
+    current_rank = 1
+    prev_average = None
+    
+    for idx, entry in enumerate(sorted_weekly):
+        # Handle ties - players with same average get same rank
+        if prev_average is not None and abs(entry['average'] - prev_average) > 0.001:  # Small epsilon for float comparison
+            current_rank = idx + 1
+        
+        medal = medals[current_rank - 1] if current_rank <= 3 else "•"
+        msg += f"{medal} {entry['name']}: {entry['average']:.1f} avg ({entry['puzzles_played']} puzzles)\n"
+        prev_average = entry['average']
+
     await ctx.send(msg)
 
 
@@ -139,9 +205,17 @@ async def post_daily_leaderboard():
                             sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
                             msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
                             medals = ["🥇", "🥈", "🥉"]
+                            current_rank = 1
+                            prev_guesses = None
+                            
                             for idx, (uid, entry) in enumerate(sorted_scores):
-                                medal = medals[idx] if idx < 3 else "•"
+                                # Handle ties - players with same score get same rank
+                                if prev_guesses is not None and entry['guesses'] != prev_guesses:
+                                    current_rank = idx + 1
+                                
+                                medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                 msg += f"{medal} <@{uid}> {entry['guesses']} guesses\n"
+                                prev_guesses = entry['guesses']
                             await channel.send(msg)
                         else:
                             await channel.send("No results for today's puzzle yet.")
@@ -152,7 +226,6 @@ async def post_daily_leaderboard():
         import traceback
         traceback.print_exc()
 
-#TODO: ADD FUNCTIONALITY FOR TIES (e.g. 2 people with 3 guesses) THINKING ABOUT ADDING A TIEBREAKER GAME OF GUESS THE NUMBER, CLOSEST WINS
 
 # --- Command: Clear Leaderboard (Admin) ---
 @bot.command(name="clear_leaderboard")
