@@ -1,3 +1,5 @@
 .env
 /leaderboard.json
 .idea/
+__pycache__/
+*.pyc
