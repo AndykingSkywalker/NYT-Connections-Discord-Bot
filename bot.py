@@ -117,27 +117,23 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
     await ctx.send(msg)
 
 
-# --- Command: Weekly Leaderboard ---
-@bot.command(name="weekly_leaderboard")
-async def weekly_leaderboard_cmd(ctx):
-    guild_id = ctx.guild.id
+# --- Weekly Leaderboard Logic ---
+def generate_weekly_leaderboard_message(guild_id):
+    """Generate the weekly leaderboard message for a guild. Returns None if no data available."""
     leaderboard = load_leaderboard(guild_id)
     
     if not leaderboard:
-        await ctx.send("No puzzles have been recorded yet.")
-        return
+        return None
     
     # Calculate weekly scores (last 7 puzzles)
     puzzle_numbers = sorted([int(k) for k in leaderboard.keys()])
     recent_puzzles = puzzle_numbers[-7:]  # Last 7 puzzles
     
     if len(recent_puzzles) == 0:
-        await ctx.send("No puzzles available for weekly leaderboard.")
-        return
+        return None
     
     # Aggregate scores across the week
     weekly_scores = {}
-    puzzle_count = {}
     
     for puzzle_num in recent_puzzles:
         puzzle_key = str(puzzle_num)
@@ -178,6 +174,18 @@ async def weekly_leaderboard_cmd(ctx):
         msg += f"{medal} {entry['name']}: {entry['total_score']} total ({entry['puzzles_played']}/{total_puzzles} puzzles)\n"
         prev_total = entry['total_score']
 
+    return msg
+
+# --- Command: Weekly Leaderboard ---
+@bot.command(name="weekly_leaderboard")
+async def weekly_leaderboard_cmd(ctx):
+    guild_id = ctx.guild.id
+    msg = generate_weekly_leaderboard_message(guild_id)
+    
+    if msg is None:
+        await ctx.send("No puzzles have been recorded yet.")
+        return
+    
     await ctx.send(msg)
 
 
@@ -198,11 +206,15 @@ async def post_daily_leaderboard():
             if last_posted_minute == minute_key:
                 return  # Prevent duplicate posts in the same minute
             last_posted_minute = minute_key
+            
+            is_sunday = now.weekday() == 6  # Sunday is 6 in Python's weekday()
+            
             for guild in bot.guilds:
                 channel = discord.utils.get(guild.text_channels, name="connections")
                 if channel:
                     leaderboard = load_leaderboard(guild.id)
                     if leaderboard:
+                        # Post daily leaderboard
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
                         if scores:
@@ -224,6 +236,14 @@ async def post_daily_leaderboard():
                             await channel.send(msg)
                         else:
                             await channel.send("No results for today's puzzle yet.")
+                        
+                        # Post weekly leaderboard on Sundays
+                        if is_sunday:
+                            weekly_msg = generate_weekly_leaderboard_message(guild.id)
+                            if weekly_msg:
+                                await channel.send(weekly_msg)
+                            else:
+                                await channel.send("No puzzles available for weekly leaderboard.")
                     else:
                         await channel.send("No puzzles have been recorded yet.")
     except Exception as e:
