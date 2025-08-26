@@ -45,7 +45,7 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
 ## Usage
 - Post your NYT Connections results in the `#connections` channel.
 - Use `!leaderboard today` or `!leaderboard <puzzle_number>` to view the leaderboard for a specific puzzle.
-- Use `!weekly_leaderboard` to view the weekly leaderboard (average scores across the last 7 puzzles).
+- Use `!weekly_leaderboard` to view the weekly leaderboard (total scores across the last 7 puzzles, with penalties for missed puzzles).
 - The bot will post a daily summary at the configured time (default: 21:00 UTC).
 
 ## Timezone

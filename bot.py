@@ -152,26 +152,31 @@ async def weekly_leaderboard_cmd(ctx):
                 weekly_scores[user_id]['total_guesses'] += user_data['guesses']
                 weekly_scores[user_id]['puzzles_played'] += 1
     
-    # Calculate average scores and sort
-    for user_data in weekly_scores.values():
-        user_data['average'] = user_data['total_guesses'] / user_data['puzzles_played']
+    # Calculate total scores with penalties for missed puzzles
+    penalty_per_missed_puzzle = 6  # High penalty for skipping puzzles
+    total_puzzles = len(recent_puzzles)
     
-    sorted_weekly = sorted(weekly_scores.values(), key=lambda x: x['average'])
+    for user_data in weekly_scores.values():
+        missed_puzzles = total_puzzles - user_data['puzzles_played']
+        penalty_points = missed_puzzles * penalty_per_missed_puzzle
+        user_data['total_score'] = user_data['total_guesses'] + penalty_points
+    
+    sorted_weekly = sorted(weekly_scores.values(), key=lambda x: x['total_score'])
     
     msg = f"🏆 Weekly Leaderboard (Last {len(recent_puzzles)} puzzles: #{recent_puzzles[0]}-#{recent_puzzles[-1]}) 🏆\n"
     
     medals = ["🥇", "🥈", "🥉"]
     current_rank = 1
-    prev_average = None
+    prev_total = None
     
     for idx, entry in enumerate(sorted_weekly):
-        # Handle ties - players with same average get same rank
-        if prev_average is not None and abs(entry['average'] - prev_average) > 0.001:  # Small epsilon for float comparison
+        # Handle ties - players with same total score get same rank
+        if prev_total is not None and entry['total_score'] != prev_total:
             current_rank = idx + 1
         
         medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-        msg += f"{medal} {entry['name']}: {entry['average']:.1f} avg ({entry['puzzles_played']} puzzles)\n"
-        prev_average = entry['average']
+        msg += f"{medal} {entry['name']}: {entry['total_score']} total ({entry['puzzles_played']}/{total_puzzles} puzzles)\n"
+        prev_total = entry['total_score']
 
     await ctx.send(msg)
 
