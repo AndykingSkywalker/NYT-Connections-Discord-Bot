@@ -77,7 +77,7 @@ async def on_message(message):
 
     # Detect puzzle number
     match = re.search(r'Puzzle #(\d+)', message.content)
-    if match and re.search(r'[🟩🟦🟧🟨]', message.content):
+    if match and re.search(r'[🟩🟦🟧🟨🟪]', message.content):
         puzzle = str(match.group(1))
         user_id = str(message.author.id)
         user_name = message.author.display_name
@@ -91,9 +91,9 @@ async def on_message(message):
             )
         else:
             # Count guesses = number of lines containing squares + 1 (to account for off-by-1 error)
-            colored_lines = [line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)]
-            guesses = len(colored_lines) + 1
-            connections_solved = len(colored_lines)
+            full_group_pattern = r'^(🟩{4}|🟦{4}|🟧{4}|🟨{4}|🟪{4})$'
+            connections_solved = sum(1 for line in message.content.splitlines() if re.match(full_group_pattern, line.strip()))
+            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨🟪]', line)]) + 1
             
             # Check if puzzle is complete (4 connections solved)
             is_complete = connections_solved >= 4
