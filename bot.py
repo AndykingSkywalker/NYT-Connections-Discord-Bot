@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from keep_alive import keep_alive
 import threading
 import glob
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -41,6 +42,27 @@ def save_leaderboard(guild_id, data):
 # --- Auto-detect NYT Connections results ---
 leaderboard_lock = threading.Lock()
 
+async def send_with_rate_limit_handling(channel, message, max_retries=3):
+    """Send a message to a channel with rate limit handling and retries."""
+    for attempt in range(max_retries):
+        try:
+            await channel.send(message)
+            return True
+        except discord.HTTPException as e:
+            if e.status == 429:  # Rate limited
+                retry_after = float(e.response.headers.get('Retry-After', 1))
+                print(f"Rate limited, waiting {retry_after} seconds before retry {attempt + 1}/{max_retries}")
+                await asyncio.sleep(retry_after)
+            else:
+                print(f"HTTP error sending message: {e}")
+                return False
+        except Exception as e:
+            print(f"Unexpected error sending message: {e}")
+            return False
+    
+    print(f"Failed to send message after {max_retries} attempts")
+    return False
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -63,7 +85,8 @@ async def on_message(message):
         # Only record the first submission for each user per puzzle
         leaderboard.setdefault(puzzle, {})
         if user_id in leaderboard[puzzle]:
-            await message.channel.send(
+            await send_with_rate_limit_handling(
+                message.channel,
                 f"⚠️ {user_name}, you've already submitted a result for Puzzle #{puzzle}. Only your first submission counts."
             )
         else:
@@ -72,7 +95,8 @@ async def on_message(message):
             leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
             save_leaderboard(guild_id, leaderboard)
             print(f"Saved submission for {user_name} (Puzzle {puzzle}, {guesses} guesses)")
-            await message.channel.send(
+            await send_with_rate_limit_handling(
+                message.channel,
                 f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
             )
 
@@ -86,14 +110,14 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
 
     if puzzle_number.lower() == "today":
         if not leaderboard:
-            await ctx.send("No puzzles have been recorded yet.")
+            await send_with_rate_limit_handling(ctx.channel, "No puzzles have been recorded yet.")
             return
         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))  # latest puzzle
     else:
         puzzle_key = puzzle_number
 
     if puzzle_key not in leaderboard:
-        await ctx.send(f"No results yet for Puzzle #{puzzle_key}.")
+        await send_with_rate_limit_handling(ctx.channel, f"No results yet for Puzzle #{puzzle_key}.")
         return
 
     scores = leaderboard[puzzle_key]
@@ -114,7 +138,7 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
         msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
         prev_guesses = entry['guesses']
 
-    await ctx.send(msg)
+    await send_with_rate_limit_handling(ctx.channel, msg)
 
 
 # --- Weekly Leaderboard Logic ---
@@ -183,10 +207,10 @@ async def weekly_leaderboard_cmd(ctx):
     msg = generate_weekly_leaderboard_message(guild_id)
     
     if msg is None:
-        await ctx.send("No puzzles have been recorded yet.")
+        await send_with_rate_limit_handling(ctx.channel, "No puzzles have been recorded yet.")
         return
     
-    await ctx.send(msg)
+    await send_with_rate_limit_handling(ctx.channel, msg)
 
 
 # --- Event: Final Leaderboard of the Day ---
@@ -233,19 +257,22 @@ async def post_daily_leaderboard():
                                 medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                 msg += f"{medal} <@{uid}> {entry['guesses']} guesses\n"
                                 prev_guesses = entry['guesses']
-                            await channel.send(msg)
+                            await send_with_rate_limit_handling(channel, msg)
                         else:
-                            await channel.send("No results for today's puzzle yet.")
+                            await send_with_rate_limit_handling(channel, "No results for today's puzzle yet.")
                         
                         # Post weekly leaderboard on Sundays
                         if is_sunday:
                             weekly_msg = generate_weekly_leaderboard_message(guild.id)
                             if weekly_msg:
-                                await channel.send(weekly_msg)
+                                await send_with_rate_limit_handling(channel, weekly_msg)
                             else:
-                                await channel.send("No puzzles available for weekly leaderboard.")
+                                await send_with_rate_limit_handling(channel, "No puzzles available for weekly leaderboard.")
                     else:
-                        await channel.send("No puzzles have been recorded yet.")
+                        await send_with_rate_limit_handling(channel, "No puzzles have been recorded yet.")
+                
+                # Add delay between guilds to prevent rate limiting
+                await asyncio.sleep(1)
     except Exception as e:
         print(f"Error in post_daily_leaderboard: {e}")
         import traceback
@@ -258,13 +285,13 @@ async def post_daily_leaderboard():
 async def clear_leaderboard(ctx):
     guild_id = ctx.guild.id
     save_leaderboard(guild_id, {})
-    await ctx.send("Leaderboard data cleared.")
+    await send_with_rate_limit_handling(ctx.channel, "Leaderboard data cleared.")
 
 @bot.command(name="show_leaderboard_file")
 async def show_leaderboard_file(ctx):
     guild_id = ctx.guild.id
     file_name = get_leaderboard_file(guild_id)
-    await ctx.send(f"Leaderboard file for this server: {file_name}")
+    await send_with_rate_limit_handling(ctx.channel, f"Leaderboard file for this server: {file_name}")
 
 def stop_bot():
     # This function can be called in tests to stop the bot if running
