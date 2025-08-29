@@ -157,16 +157,17 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
         if prev_guesses is not None and entry['guesses'] != prev_guesses:
             current_rank = idx + 1
         
-        medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-        
         # Handle both old and new data formats for backward compatibility
         if 'status' in entry:
             if entry['status'] == 'complete':
+                medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                 status_display = f"{entry['guesses']} guesses"
             else:
+                medal = "💀"  # Skull emoji for incomplete puzzles
                 status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
         else:
             # Old format - assume complete if no status field
+            medal = medals[current_rank - 1] if current_rank <= 3 else "•"
             status_display = f"{entry['guesses']} guesses"
         
         msg += f"{medal} {entry['name']}: {status_display}\n"
@@ -301,16 +302,17 @@ async def post_daily_leaderboard():
                                 if prev_guesses is not None and entry['guesses'] != prev_guesses:
                                     current_rank = idx + 1
                                 
-                                medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-                                
                                 # Handle both old and new data formats for backward compatibility
                                 if 'status' in entry:
                                     if entry['status'] == 'complete':
+                                        medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                         status_display = f"{entry['guesses']} guesses"
                                     else:
+                                        medal = "💀"  # Skull emoji for incomplete puzzles
                                         status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
                                 else:
                                     # Old format - assume complete if no status field
+                                    medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                     status_display = f"{entry['guesses']} guesses"
                                 
                                 msg += f"{medal} <@{uid}> {status_display}\n"
