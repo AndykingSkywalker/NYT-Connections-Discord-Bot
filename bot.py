@@ -91,13 +91,36 @@ async def on_message(message):
             )
         else:
             # Count guesses = number of lines containing squares + 1 (to account for off-by-1 error)
-            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)]) + 1
-            leaderboard[puzzle][user_id] = {"name": user_name, "guesses": guesses}
+            colored_lines = [line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨]', line)]
+            guesses = len(colored_lines) + 1
+            connections_solved = len(colored_lines)
+            
+            # Check if puzzle is complete (4 connections solved)
+            is_complete = connections_solved >= 4
+            
+            if is_complete:
+                # Complete puzzle: use normal scoring
+                final_score = guesses
+                status = "complete"
+                status_text = f"({guesses} guesses)"
+            else:
+                # Incomplete puzzle: penalty score of 10 and mark as failed
+                final_score = 10
+                status = "incomplete"
+                status_text = f"(❌ INCOMPLETE - {connections_solved}/4 connections, penalty score: 10)"
+            
+            leaderboard[puzzle][user_id] = {
+                "name": user_name, 
+                "guesses": final_score,
+                "status": status,
+                "connections_solved": connections_solved,
+                "actual_guesses": guesses
+            }
             save_leaderboard(guild_id, leaderboard)
-            print(f"Saved submission for {user_name} (Puzzle {puzzle}, {guesses} guesses)")
+            print(f"Saved submission for {user_name} (Puzzle {puzzle}, {status_text})")
             await send_with_rate_limit_handling(
                 message.channel,
-                f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} ({guesses} guesses)"
+                f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} {status_text}"
             )
 
     await bot.process_commands(message)
@@ -135,7 +158,18 @@ async def leaderboard_cmd(ctx, puzzle_number: str):
             current_rank = idx + 1
         
         medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-        msg += f"{medal} {entry['name']}: {entry['guesses']} guesses\n"
+        
+        # Handle both old and new data formats for backward compatibility
+        if 'status' in entry:
+            if entry['status'] == 'complete':
+                status_display = f"{entry['guesses']} guesses"
+            else:
+                status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
+        else:
+            # Old format - assume complete if no status field
+            status_display = f"{entry['guesses']} guesses"
+        
+        msg += f"{medal} {entry['name']}: {status_display}\n"
         prev_guesses = entry['guesses']
 
     await send_with_rate_limit_handling(ctx.channel, msg)
@@ -167,10 +201,21 @@ def generate_weekly_leaderboard_message(guild_id):
                     weekly_scores[user_id] = {
                         'name': user_data['name'],
                         'total_guesses': 0,
-                        'puzzles_played': 0
+                        'puzzles_played': 0,
+                        'complete_puzzles': 0,
+                        'incomplete_puzzles': 0
                     }
                 weekly_scores[user_id]['total_guesses'] += user_data['guesses']
                 weekly_scores[user_id]['puzzles_played'] += 1
+                
+                # Track completion status for weekly stats
+                if user_data.get('status') == 'complete':
+                    weekly_scores[user_id]['complete_puzzles'] += 1
+                elif user_data.get('status') == 'incomplete':
+                    weekly_scores[user_id]['incomplete_puzzles'] += 1
+                else:
+                    # Old format - assume complete if no status field
+                    weekly_scores[user_id]['complete_puzzles'] += 1
     
     # Calculate total scores with penalties for missed puzzles
     penalty_per_missed_puzzle = 6  # High penalty for skipping puzzles
@@ -195,7 +240,9 @@ def generate_weekly_leaderboard_message(guild_id):
             current_rank = idx + 1
         
         medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-        msg += f"{medal} {entry['name']}: {entry['total_score']} total ({entry['puzzles_played']}/{total_puzzles} puzzles)\n"
+        complete = entry.get('complete_puzzles', entry['puzzles_played'])  # Backward compatibility
+        incomplete = entry.get('incomplete_puzzles', 0)
+        msg += f"{medal} {entry['name']}: {entry['total_score']} total ({complete}✅/{incomplete}❌ of {total_puzzles} puzzles)\n"
         prev_total = entry['total_score']
 
     return msg
@@ -255,7 +302,18 @@ async def post_daily_leaderboard():
                                     current_rank = idx + 1
                                 
                                 medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-                                msg += f"{medal} <@{uid}> {entry['guesses']} guesses\n"
+                                
+                                # Handle both old and new data formats for backward compatibility
+                                if 'status' in entry:
+                                    if entry['status'] == 'complete':
+                                        status_display = f"{entry['guesses']} guesses"
+                                    else:
+                                        status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
+                                else:
+                                    # Old format - assume complete if no status field
+                                    status_display = f"{entry['guesses']} guesses"
+                                
+                                msg += f"{medal} <@{uid}> {status_display}\n"
                                 prev_guesses = entry['guesses']
                             await send_with_rate_limit_handling(channel, msg)
                         else:
