@@ -90,10 +90,10 @@ async def on_message(message):
                 f"⚠️ {user_name}, you've already submitted a result for Puzzle #{puzzle}. Only your first submission counts."
             )
         else:
-            # Count guesses = number of lines containing squares + 1 (to account for off-by-1 error)
+            # Count guesses = number of lines containing squares
             full_group_pattern = r'^(🟩{4}|🟦{4}|🟧{4}|🟨{4}|🟪{4})$'
             connections_solved = sum(1 for line in message.content.splitlines() if re.match(full_group_pattern, line.strip()))
-            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨🟪]', line)]) + 1
+            guesses = len([line for line in message.content.splitlines() if re.search(r'[🟩🟦🟧🟨🟪]', line)])
             
             # Check if puzzle is complete (4 connections solved)
             is_complete = connections_solved >= 4
