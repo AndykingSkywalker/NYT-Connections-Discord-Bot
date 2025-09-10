@@ -18,5 +18,7 @@ jobs:
         run: npm install -g @railway/cli
       - name: Deploy to Railway
         uses: railwayapp/railway-action@v1
+        with:
+          serviceName: NYT-Connections-Discord-Bot
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
