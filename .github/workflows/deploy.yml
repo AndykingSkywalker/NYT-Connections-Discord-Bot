@@ -19,4 +19,4 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway
-        run: railway up --service "$SERVICE_NAME" --yes
+        run: railway up --service "$SERVICE_NAME" --ci
