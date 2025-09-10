@@ -8,17 +8,15 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      SERVICE_NAME: NYT-Connections-Discord-Bot
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
+
       - name: Deploy to Railway
-        uses: railwayapp/railway-action@v1
-        with:
-          serviceName: NYT-Connections-Discord-Bot
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service "$SERVICE_NAME" --yes
