@@ -27,6 +27,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 def get_leaderboard_file(guild_id):
     return f"leaderboard_{guild_id}.json"
 
+def get_streaks_file(guild_id):
+    return f"streaks_{guild_id}.json"
+
 def load_leaderboard(guild_id):
     file = get_leaderboard_file(guild_id)
     if os.path.exists(file):
@@ -38,6 +41,64 @@ def save_leaderboard(guild_id, data):
     file = get_leaderboard_file(guild_id)
     with open(file, "w") as f:
         json.dump(data, f, indent=2)
+
+def load_streaks(guild_id):
+    file = get_streaks_file(guild_id)
+    if os.path.exists(file):
+        with open(file, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_streaks(guild_id, data):
+    file = get_streaks_file(guild_id)
+    with open(file, "w") as f:
+        json.dump(data, f, indent=2)
+
+def calculate_user_streak(guild_id, user_id, current_puzzle):
+    """Calculate the current consecutive daily streak for a user."""
+    leaderboard = load_leaderboard(guild_id)
+    
+    if not leaderboard:
+        return 0
+    
+    # Get all puzzle numbers the user has participated in, sorted
+    user_puzzles = []
+    for puzzle_num, puzzle_data in leaderboard.items():
+        if user_id in puzzle_data:
+            user_puzzles.append(int(puzzle_num))
+    
+    if not user_puzzles:
+        return 0
+    
+    user_puzzles.sort(reverse=True)  # Most recent first
+    current_puzzle_int = int(current_puzzle)
+    
+    # Start with current puzzle and count consecutive days backwards
+    streak = 0
+    expected_puzzle = current_puzzle_int
+    
+    for puzzle_num in user_puzzles:
+        if puzzle_num == expected_puzzle:
+            streak += 1
+            expected_puzzle -= 1
+        elif puzzle_num < expected_puzzle:
+            # We've found a gap, stop counting
+            break
+    
+    return streak
+
+def update_user_streak(guild_id, user_id, current_puzzle):
+    """Update and return the user's current streak."""
+    streaks = load_streaks(guild_id)
+    
+    # Calculate the new streak
+    new_streak = calculate_user_streak(guild_id, user_id, current_puzzle)
+    
+    # Update the stored streak
+    streaks[user_id] = new_streak
+    save_streaks(guild_id, streaks)
+    
+    return new_streak
 
 # --- Auto-detect NYT Connections results ---
 leaderboard_lock = threading.Lock()
@@ -117,10 +178,19 @@ async def on_message(message):
                 "actual_guesses": guesses
             }
             save_leaderboard(guild_id, leaderboard)
+            
+            # Calculate and update user's daily streak
+            current_streak = update_user_streak(guild_id, user_id, puzzle)
+            
+            # Create streak display with fire emoji
+            streak_text = ""
+            if current_streak > 0:
+                streak_text = f" 🔥 {current_streak} day streak!"
+            
             print(f"Saved submission for {user_name} (Puzzle {puzzle}, {status_text})")
             await send_with_rate_limit_handling(
                 message.channel,
-                f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} {status_text}"
+                f"✅ Recorded {user_name}'s result for Puzzle #{puzzle} {status_text}{streak_text}"
             )
 
     await bot.process_commands(message)
@@ -248,6 +318,67 @@ def generate_weekly_leaderboard_message(guild_id):
 
     return msg
 
+def generate_combined_sunday_leaderboard_message(guild_id, puzzle_key, scores):
+    """Generate a combined daily + weekly leaderboard message for Sundays with user tags."""
+    # Generate daily leaderboard portion
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
+    daily_msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
+    medals = ["🥇", "🥈", "🥉"]
+    current_rank = 1
+    prev_guesses = None
+    
+    for idx, (uid, entry) in enumerate(sorted_scores):
+        # Handle ties - players with same score get same rank
+        if prev_guesses is not None and entry['guesses'] != prev_guesses:
+            current_rank = idx + 1
+        
+        # Handle both old and new data formats for backward compatibility
+        if 'status' in entry:
+            if entry['status'] == 'complete':
+                medal = medals[current_rank - 1] if current_rank <= 3 else "•"
+                status_display = f"{entry['guesses']} guesses"
+            else:
+                medal = "💀"  # Skull emoji for incomplete puzzles
+                status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
+        else:
+            # Old format - assume complete if no status field
+            medal = medals[current_rank - 1] if current_rank <= 3 else "•"
+            status_display = f"{entry['guesses']} guesses"
+        
+        daily_msg += f"{medal} <@{uid}> {status_display}\n"
+        prev_guesses = entry['guesses']
+    
+    # Generate weekly leaderboard portion
+    weekly_msg_base = generate_weekly_leaderboard_message(guild_id)
+    if weekly_msg_base:
+        # Convert weekly leaderboard to use tags instead of just names
+        weekly_lines = weekly_msg_base.split('\n')[1:]  # Skip header
+        weekly_tagged_lines = []
+        
+        # We need to find user IDs for tagging in weekly leaderboard
+        leaderboard = load_leaderboard(guild_id)
+        name_to_uid = {}
+        
+        # Build mapping from display names to user IDs
+        for puzzle_data in leaderboard.values():
+            for uid, user_data in puzzle_data.items():
+                name_to_uid[user_data['name']] = uid
+        
+        for line in weekly_lines:
+            if line.strip():
+                # Replace names with tags in weekly leaderboard
+                for name, uid in name_to_uid.items():
+                    if f" {name}:" in line:
+                        line = line.replace(f" {name}:", f" <@{uid}>:")
+                        break
+                weekly_tagged_lines.append(line)
+        
+        weekly_msg = "\n\n" + weekly_msg_base.split('\n')[0] + "\n" + "\n".join(weekly_tagged_lines)
+    else:
+        weekly_msg = "\n\nNo puzzles available for weekly leaderboard."
+    
+    return daily_msg + weekly_msg
+
 # --- Command: Weekly Leaderboard ---
 @bot.command(name="weekly_leaderboard")
 async def weekly_leaderboard_cmd(ctx):
@@ -290,44 +421,41 @@ async def post_daily_leaderboard():
                         puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
                         scores = leaderboard[puzzle_key]
                         if scores:
-                            # Sort by guesses, but keep all users
-                            sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
-                            msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
-                            medals = ["🥇", "🥈", "🥉"]
-                            current_rank = 1
-                            prev_guesses = None
-                            
-                            for idx, (uid, entry) in enumerate(sorted_scores):
-                                # Handle ties - players with same score get same rank
-                                if prev_guesses is not None and entry['guesses'] != prev_guesses:
-                                    current_rank = idx + 1
+                            if is_sunday:
+                                # On Sundays, post combined daily + weekly leaderboard
+                                combined_msg = generate_combined_sunday_leaderboard_message(guild.id, puzzle_key, scores)
+                                await send_with_rate_limit_handling(channel, combined_msg)
+                            else:
+                                # Regular daily leaderboard for other days
+                                sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
+                                msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
+                                medals = ["🥇", "🥈", "🥉"]
+                                current_rank = 1
+                                prev_guesses = None
                                 
-                                # Handle both old and new data formats for backward compatibility
-                                if 'status' in entry:
-                                    if entry['status'] == 'complete':
+                                for idx, (uid, entry) in enumerate(sorted_scores):
+                                    # Handle ties - players with same score get same rank
+                                    if prev_guesses is not None and entry['guesses'] != prev_guesses:
+                                        current_rank = idx + 1
+                                    
+                                    # Handle both old and new data formats for backward compatibility
+                                    if 'status' in entry:
+                                        if entry['status'] == 'complete':
+                                            medal = medals[current_rank - 1] if current_rank <= 3 else "•"
+                                            status_display = f"{entry['guesses']} guesses"
+                                        else:
+                                            medal = "💀"  # Skull emoji for incomplete puzzles
+                                            status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
+                                    else:
+                                        # Old format - assume complete if no status field
                                         medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                         status_display = f"{entry['guesses']} guesses"
-                                    else:
-                                        medal = "💀"  # Skull emoji for incomplete puzzles
-                                        status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
-                                else:
-                                    # Old format - assume complete if no status field
-                                    medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-                                    status_display = f"{entry['guesses']} guesses"
-                                
-                                msg += f"{medal} <@{uid}> {status_display}\n"
-                                prev_guesses = entry['guesses']
-                            await send_with_rate_limit_handling(channel, msg)
+                                    
+                                    msg += f"{medal} <@{uid}> {status_display}\n"
+                                    prev_guesses = entry['guesses']
+                                await send_with_rate_limit_handling(channel, msg)
                         else:
                             await send_with_rate_limit_handling(channel, "No results for today's puzzle yet.")
-                        
-                        # Post weekly leaderboard on Sundays
-                        if is_sunday:
-                            weekly_msg = generate_weekly_leaderboard_message(guild.id)
-                            if weekly_msg:
-                                await send_with_rate_limit_handling(channel, weekly_msg)
-                            else:
-                                await send_with_rate_limit_handling(channel, "No puzzles available for weekly leaderboard.")
                     else:
                         await send_with_rate_limit_handling(channel, "No puzzles have been recorded yet.")
                 
