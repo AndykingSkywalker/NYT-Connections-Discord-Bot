@@ -5,9 +5,11 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
 ## Features
 - Automatically detects and records NYT Connections results posted in a specific channel (default: `#connections`).
 - Maintains a daily leaderboard based on the number of guesses.
+- **Daily streak tracking**: Shows consecutive days played with 🔥 emoji when acknowledging results.
 - Provides a `!leaderboard` command to display results for any puzzle or for today.
 - Posts a final leaderboard summary at a scheduled time each day.
-- Stores data in a local JSON file (`leaderboard.json`).
+- **Combined Sunday leaderboard**: On Sundays, posts a single combined daily + weekly leaderboard with user tags.
+- Stores data in local JSON files (`leaderboard_[guild_id].json` and `streaks_[guild_id].json`).
 
 ## Setup
 1. **Clone the repository:**
@@ -44,9 +46,11 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
 
 ## Usage
 - Post your NYT Connections results in the `#connections` channel.
+- The bot will acknowledge your result and show your current consecutive day streak: "✅ Recorded Alice's result for Puzzle #503 (4 guesses) 🔥 4 day streak!"
 - Use `!leaderboard today` or `!leaderboard <puzzle_number>` to view the leaderboard for a specific puzzle.
 - Use `!weekly_leaderboard` to view the weekly leaderboard (total scores across the last 7 puzzles, with penalties for missed puzzles).
 - The bot will post a daily summary at the configured time (default: 21:00 UTC).
+- On Sundays, the bot posts a combined daily + weekly leaderboard that tags all participants.
 
 ## Timezone
 - By default, the bot uses UTC for scheduling. If your users are in a different timezone, adjust the timezone in `bot.py` accordingly.
