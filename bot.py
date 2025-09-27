@@ -87,6 +87,40 @@ def calculate_user_streak(guild_id, user_id, current_puzzle):
     
     return streak
 
+def has_results_from_today(leaderboard, today_date):
+    """Check if any puzzle has results submitted today."""
+    for puzzle_key, scores in leaderboard.items():
+        for user_id, entry in scores.items():
+            # Check if this entry has a timestamp from today
+            if 'timestamp' in entry:
+                try:
+                    entry_date = datetime.datetime.fromisoformat(entry['timestamp']).date()
+                    if entry_date == today_date:
+                        return puzzle_key
+                except (ValueError, TypeError):
+                    # If timestamp is malformed, skip this entry
+                    continue
+    return None
+
+def get_latest_puzzle_from_today(leaderboard, today_date):
+    """Get the latest puzzle number that has results from today."""
+    today_puzzles = []
+    for puzzle_key, scores in leaderboard.items():
+        has_today_result = False
+        for user_id, entry in scores.items():
+            if 'timestamp' in entry:
+                try:
+                    entry_date = datetime.datetime.fromisoformat(entry['timestamp']).date()
+                    if entry_date == today_date:
+                        has_today_result = True
+                        break
+                except (ValueError, TypeError):
+                    continue
+        if has_today_result:
+            today_puzzles.append(int(puzzle_key))
+    
+    return str(max(today_puzzles)) if today_puzzles else None
+
 def update_user_streak(guild_id, user_id, current_puzzle):
     """Update and return the user's current streak."""
     streaks = load_streaks(guild_id)
@@ -175,7 +209,8 @@ async def on_message(message):
                 "guesses": final_score,
                 "status": status,
                 "connections_solved": connections_solved,
-                "actual_guesses": guesses
+                "actual_guesses": guesses,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
             save_leaderboard(guild_id, leaderboard)
             
@@ -404,6 +439,7 @@ async def post_daily_leaderboard():
     global last_posted_minute
     try:
         now = datetime.datetime.now(datetime.timezone.utc)  # Change timezone if your users are not in UTC
+        today_date = now.date()
         minute_key = f"{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}"
         if now.hour == 21 and now.minute == 0:  # 9:00 PM UTC
             if last_posted_minute == minute_key:
@@ -417,45 +453,49 @@ async def post_daily_leaderboard():
                 if channel:
                     leaderboard = load_leaderboard(guild.id)
                     if leaderboard:
-                        # Post daily leaderboard
-                        puzzle_key = max(leaderboard.keys(), key=lambda k: int(k))
-                        scores = leaderboard[puzzle_key]
-                        if scores:
-                            if is_sunday:
-                                # On Sundays, post combined daily + weekly leaderboard
-                                combined_msg = generate_combined_sunday_leaderboard_message(guild.id, puzzle_key, scores)
-                                await send_with_rate_limit_handling(channel, combined_msg)
-                            else:
-                                # Regular daily leaderboard for other days
-                                sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
-                                msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
-                                medals = ["🥇", "🥈", "🥉"]
-                                current_rank = 1
-                                prev_guesses = None
-                                
-                                for idx, (uid, entry) in enumerate(sorted_scores):
-                                    # Handle ties - players with same score get same rank
-                                    if prev_guesses is not None and entry['guesses'] != prev_guesses:
-                                        current_rank = idx + 1
+                        # Check if there are results from today
+                        puzzle_key = get_latest_puzzle_from_today(leaderboard, today_date)
+                        
+                        if puzzle_key:
+                            # We have results from today, post the leaderboard
+                            scores = leaderboard[puzzle_key]
+                            if scores:
+                                if is_sunday:
+                                    # On Sundays, post combined daily + weekly leaderboard
+                                    combined_msg = generate_combined_sunday_leaderboard_message(guild.id, puzzle_key, scores)
+                                    await send_with_rate_limit_handling(channel, combined_msg)
+                                else:
+                                    # Regular daily leaderboard for other days
+                                    sorted_scores = sorted(scores.items(), key=lambda x: x[1]["guesses"])
+                                    msg = f"🏆 Final Leaderboard for Puzzle #{puzzle_key} 🏆\n"
+                                    medals = ["🥇", "🥈", "🥉"]
+                                    current_rank = 1
+                                    prev_guesses = None
                                     
-                                    # Handle both old and new data formats for backward compatibility
-                                    if 'status' in entry:
-                                        if entry['status'] == 'complete':
+                                    for idx, (uid, entry) in enumerate(sorted_scores):
+                                        # Handle ties - players with same score get same rank
+                                        if prev_guesses is not None and entry['guesses'] != prev_guesses:
+                                            current_rank = idx + 1
+                                        
+                                        # Handle both old and new data formats for backward compatibility
+                                        if 'status' in entry:
+                                            if entry['status'] == 'complete':
+                                                medal = medals[current_rank - 1] if current_rank <= 3 else "•"
+                                                status_display = f"{entry['guesses']} guesses"
+                                            else:
+                                                medal = "💀"  # Skull emoji for incomplete puzzles
+                                                status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
+                                        else:
+                                            # Old format - assume complete if no status field
                                             medal = medals[current_rank - 1] if current_rank <= 3 else "•"
                                             status_display = f"{entry['guesses']} guesses"
-                                        else:
-                                            medal = "💀"  # Skull emoji for incomplete puzzles
-                                            status_display = f"❌ INCOMPLETE ({entry.get('connections_solved', 0)}/4)"
-                                    else:
-                                        # Old format - assume complete if no status field
-                                        medal = medals[current_rank - 1] if current_rank <= 3 else "•"
-                                        status_display = f"{entry['guesses']} guesses"
-                                    
-                                    msg += f"{medal} <@{uid}> {status_display}\n"
-                                    prev_guesses = entry['guesses']
-                                await send_with_rate_limit_handling(channel, msg)
+                                        
+                                        msg += f"{medal} <@{uid}> {status_display}\n"
+                                        prev_guesses = entry['guesses']
+                                    await send_with_rate_limit_handling(channel, msg)
                         else:
-                            await send_with_rate_limit_handling(channel, "No results for today's puzzle yet.")
+                            # No results from today, post a message indicating this
+                            await send_with_rate_limit_handling(channel, "📅 No one has played today's Connections puzzle yet! Be the first to submit your results.")
                     else:
                         await send_with_rate_limit_handling(channel, "No puzzles have been recorded yet.")
                 
