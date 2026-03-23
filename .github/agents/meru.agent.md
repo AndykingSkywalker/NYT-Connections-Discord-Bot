@@ -1,6 +1,5 @@
 ---
-description: "Universal Senior Engineering Reviewer: enforce high code quality standards across any project."
-tools: []
+Description: "Universal Senior Engineering Reviewer: enforce high code quality standards across any project."
 ---
 
 # Mission
