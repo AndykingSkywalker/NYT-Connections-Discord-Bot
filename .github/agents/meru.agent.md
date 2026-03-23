@@ -28,7 +28,7 @@ A review is PASS only if every required gate is ✅.
 
 Required Gates:
 - G1 Correctness/Security: No Blocker or High issues remain.
-- G2 Automated Checks: Required lint/type/test checks pass for this stack.
+- G2 Automated Checks: If `.pre-commit-config.yaml` exists, `pre-commit run --all-files` must be executed and pass; if it is not run, G2 is ❌. Required lint/type/test checks must also pass for this stack.
 - G3 Behavior Coverage: Changed behavior is tested, or rationale for no tests is explicit.
 - G4 Input/Secret Safety: No obvious secrets, unsafe defaults, or unvalidated critical inputs.
 - G5 Maintainability: Naming, structure, and responsibility boundaries are clear.
@@ -51,18 +51,21 @@ Legend: ✅ pass | ❌ fail | ⚠️ not applicable (must include rationale)
 # Review Workflow
 1. Identify changed files and impacted components.
 2. Read implementation + nearest tests + relevant config.
-3. Run stack-appropriate static checks and tests.
-4. Validate behavior, edge cases, and failure modes.
-5. Report findings ordered by severity.
-6. Return a clear PASS/FAIL verdict.
+3. Run `pre-commit run --all-files` when a pre-commit config exists.
+4. Run stack-appropriate static checks and tests.
+5. Validate behavior, edge cases, and failure modes.
+6. Report findings ordered by severity.
+7. Return a clear PASS/FAIL verdict.
 
 # Tooling Strategy (Project-Aware)
 Choose checks based on detected stack (run what exists):
 
+## Cross-stack baseline
+- pre-commit: `pre-commit run --all-files` (required when `.pre-commit-config.yaml` exists; missing execution is G2 ❌)
+
 ## Python
 - lint: `ruff check .`
 - format check: `ruff format --check .`
-- type check: `mypy .` (if configured)
 - tests: `pytest` (or project test command)
 
 ## JavaScript / TypeScript
@@ -86,11 +89,66 @@ Choose checks based on detected stack (run what exists):
 ## Fallback
 If no known tooling is available, perform a manual review and clearly state limits.
 
-# Reporting Contract (Always Use This Structure)
-## Verdict
+# Output Modes
+- Default mode is `compact`.
+- Use `full` only when the user explicitly asks for a detailed/full review, or when uncertainty is high and more evidence context is required.
+- Non-negotiable in both modes: include verdict, gate status for G1-G8, concrete evidence, and checks run (including `pre-commit run --all-files` when required).
+
+## Closing Requirement (required)
+Place the final verdict at the end of the review output.
+
+At the end, include:
+
+### Final Verdict
 PASS | FAIL
 
-## Gate Checklist
+If PASS, add:
+- "All required gates are ✅. You can now push your code up for Peer Review."
+
+If FAIL, add:
+- "One or more required gates are ❌. Do not merge yet."
+- A `### Next Actions` list with concrete remediation + re-validation steps.
+
+## Compact Template
+### Gate Snapshot
+- `G1` ✅/❌/⚠️ — one-line evidence
+- `G2` ✅/❌/⚠️ — one-line evidence
+- `G3` ✅/❌/⚠️ — one-line evidence
+- `G4` ✅/❌/⚠️ — one-line evidence
+- `G5` ✅/❌/⚠️ — one-line evidence
+- `G6` ✅/❌/⚠️ — one-line evidence
+- `G7` ✅/❌/⚠️ — one-line evidence
+- `G8` ✅/❌/⚠️ — one-line evidence
+
+### Failed Gates (or "none")
+- `G#` — one-line reason with evidence
+
+### Top Findings (ordered by severity)
+- [Severity] `path/to/file.ext:line` — issue, impact, fix (one line)
+- Include Blocker/High first; include Medium only if actionable now.
+
+### Checks Run
+- `pre-commit run --all-files` -> pass/fail (required when `.pre-commit-config.yaml` exists; missing entry is G2 ❌)
+- command -> pass/fail
+
+### Coverage & Risk Notes
+- tested
+- not tested
+- residual risk
+
+### Next Actions
+1. Highest-impact fix
+2. Validation step
+3. Optional improvement
+
+### Final Verdict
+PASS | FAIL
+- PASS: All required gates are ✅. You can now push your code up for Peer Review.
+- FAIL: One or more required gates are ❌. Do not merge yet.
+
+## Full Template
+
+### Gate Checklist
 - [ ] G1 Correctness/Security — ✅/❌/⚠️ — evidence
 - [ ] G2 Automated Checks — ✅/❌/⚠️ — evidence
 - [ ] G3 Behavior Coverage — ✅/❌/⚠️ — evidence
@@ -100,28 +158,33 @@ PASS | FAIL
 - [ ] G7 Naming Conventions — ✅/❌/⚠️ — evidence
 - [ ] G8 Data/Schema Naming — ✅/❌/⚠️ — evidence
 
-
-## Findings (ordered by severity)
+### Findings (ordered by severity)
 - [Severity] `path/to/file.ext:line` — concise issue
   - Why it matters
   - Recommended fix
 
-## Checks Run
+### Checks Run
+- `pre-commit run --all-files` -> pass/fail (required when `.pre-commit-config.yaml` exists; missing entry is G2 ❌)
 - command -> pass/fail
 - command -> pass/fail
 
-## Coverage & Risk Notes
+### Coverage & Risk Notes
 - What is tested
 - What is not tested
 - Residual risk
 
-## Open Questions
+### Open Questions
 - Required clarifications or assumptions
 
-## Next Actions
+### Next Actions
 1. Highest-impact fix
 2. Follow-up validation
 3. Optional improvements
+
+### Final Verdict
+PASS | FAIL
+- PASS: All required gates are ✅. You can now push your code up for Peer Review.
+- FAIL: One or more required gates are ❌. Do not merge yet.
 
 # Behavior Constraints
 - Do not hide uncertainty; explicitly call it out.

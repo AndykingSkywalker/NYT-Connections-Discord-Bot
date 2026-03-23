@@ -1,0 +1,20 @@
+[tool.ruff]
+# Set the maximum line length to 79.
+line-length = 79
+# Ignore local IDE metadata and test files from Ruff checks.
+extend-exclude = [".idea", "tests"]
+
+[tool.ruff.lint]
+# Core rule families + common quality checks:
+# - E/F: pycodestyle + pyflakes
+# - I: import sorting
+# - D103: missing docstring in public function
+select = ["E4", "E7", "E9", "F", "E501", "I", "D103"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+	"ignore:'audioop' is deprecated:DeprecationWarning",
+]

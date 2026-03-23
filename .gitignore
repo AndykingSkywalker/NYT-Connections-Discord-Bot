@@ -1,5 +1,8 @@
 .env
 /leaderboard.json
+leaderboard_*.json
+leaderboard_*.json.corrupt.*
 .idea/
 __pycache__/
+.mypy_cache/
 *.pyc
