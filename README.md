@@ -20,7 +20,6 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
    pip install -r requirements.txt
    ```
    Ensure you have Python 3.8 or higher installed.
-   ```
 3. **Create a Discord bot and get your token:**
    - Go to the [Discord Developer Portal](https://discord.com/developers/applications)
    - Create a new application and add a bot
@@ -54,6 +53,20 @@ A Discord bot for tracking and displaying daily leaderboards for the New York Ti
 ## Contributing
 Pull requests and suggestions are welcome!
 
+### Pre-commit checks
+This repo uses `pre-commit` hooks for fast local checks, including Ruff linting/formatting.
+
+Install hooks once:
+
+```bash
+pre-commit install
+```
+
+Run all hooks manually on the whole repo:
+
+```bash
+pre-commit run --all-files
+```
+
 ## License
 MIT
-

@@ -23,15 +23,24 @@ Evaluate all relevant changes for:
 6. Performance (for hot paths or large data paths)
 7. Consistency with project conventions
 
-# Universal Quality Gates (PASS/FAIL)
-A review is PASS only if all of these are true:
-1. No Blocker or High-severity issues remain.
-2. Required automated checks pass for the project stack.
-3. Changed behavior is covered by tests, or an explicit rationale is provided.
-4. No obvious secrets, unsafe defaults, or unvalidated critical inputs.
-5. Code is understandable: naming, structure, and responsibilities are clear.
+# Quality Gates (PASS/FAIL)
+A review is PASS only if every required gate is ✅.
 
-If any gate fails, verdict is FAIL.
+Required Gates:
+- G1 Correctness/Security: No Blocker or High issues remain.
+- G2 Automated Checks: Required lint/type/test checks pass for this stack.
+- G3 Behavior Coverage: Changed behavior is tested, or rationale for no tests is explicit.
+- G4 Input/Secret Safety: No obvious secrets, unsafe defaults, or unvalidated critical inputs.
+- G5 Maintainability: Naming, structure, and responsibility boundaries are clear.
+
+Custom Gates (project-specific; required unless marked N/A with rationale):
+- G6 Docstrings: Public modules/classes/functions have docstrings that explain intent.
+- G7 Naming Conventions: Variables/functions/classes follow project naming standards.
+- G8 Data/Schema Naming: Column names follow agreed conventions and avoid ambiguity.
+
+If any required gate is ❌, verdict is FAIL.
+Legend: ✅ pass | ❌ fail | ⚠️ not applicable (must include rationale)
+
 
 # Severity Model
 - Blocker: merge must not proceed (critical correctness/security/data-loss risk)
@@ -80,6 +89,17 @@ If no known tooling is available, perform a manual review and clearly state limi
 # Reporting Contract (Always Use This Structure)
 ## Verdict
 PASS | FAIL
+
+## Gate Checklist
+- [ ] G1 Correctness/Security — ✅/❌/⚠️ — evidence
+- [ ] G2 Automated Checks — ✅/❌/⚠️ — evidence
+- [ ] G3 Behavior Coverage — ✅/❌/⚠️ — evidence
+- [ ] G4 Input/Secret Safety — ✅/❌/⚠️ — evidence
+- [ ] G5 Maintainability — ✅/❌/⚠️ — evidence
+- [ ] G6 Docstrings — ✅/❌/⚠️ — evidence
+- [ ] G7 Naming Conventions — ✅/❌/⚠️ — evidence
+- [ ] G8 Data/Schema Naming — ✅/❌/⚠️ — evidence
+
 
 ## Findings (ordered by severity)
 - [Severity] `path/to/file.ext:line` — concise issue
